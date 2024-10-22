@@ -161,7 +161,12 @@ def UploadGridScoreInput():
         result = upload_file(request.files['file'], './Files/GridScoreInput')
         return result
     
-
+@app.route('/UploadPOI', methods=['POST'])
+def UploadPOI():
+    if request.method == 'POST':
+        result = upload_file(request.files['file'], './Files/POI')
+        return result
+    
 @app.route('/UploadTraj', methods=['POST'])
 def UploadTraj():
     if request.method == 'POST':
@@ -266,6 +271,11 @@ def GetRoadList():
         returndata = get_file_info('./Files/SimUrbanRoad', 'graphml')
         return json.dumps(returndata)
 
+@app.route('/GetPOIList', methods=['GET'])
+def GetPOIList():
+    if request.method == 'GET':
+        returndata = get_file_info('./Files/POI', 'csv')
+        return json.dumps(returndata)
 
 @app.route('/GetKeylocList', methods=['GET'])
 def GetKeylocList():
@@ -1002,5 +1012,69 @@ def GridScore():
         os.remove(f'./Files/GridScoreOutput/{taskname}.generating')
 
         return json.dumps(returndata)
+    
+
+@app.route('/KeylocFromPOI', methods=['GET'])
+def KeylocFromPOI():
+    if request.method == 'GET':
+        poipath = request.args.get('poi')
+        gridsize = int(request.args.get('gridsize'))
+        taskname = request.args.get('taskname')
+
+        import os
+        os.mkdir(f'./Files/Keylocation/{taskname}.generating')
+
+        poi = pd.read_csv(f'./Files/POI/{poipath}')
+        if ('tag' not in poi.columns)|('lon' not in poi.columns)|('lat' not in poi.columns):
+            returndata = {
+                'status': 'error',
+                'message': '错误，POI数据需要有lon,lat,tag列'
+            }
+        else:
+            poi['tag'] = poi['tag'].str.split(';').str.get(0)
+
+            poitype = pd.read_csv('./Files/POI/POI分类')
+            poi = pd.merge(poi.drop('type',axis=1),poitype)
+
+            from Models.hwo_predict.main import keyloc_from_poi
+            h0_pob_dict,h2w_pob_dict,hw2o_pob_dict,params = keyloc_from_poi(poi,gridsize)
+
+            if len(h0_pob_dict) ==0 :
+                returndata = {
+                    'status': 'error',
+                    'message': '错误，POI数据规模过小'
+                }
+            else:
+                import pickle
+                import os
+                if not os.path.exists(f'./Files/Keylocation/{taskname}'):
+                    os.mkdir(f'./Files/Keylocation/{taskname}')
+                if not os.path.exists(f'./Files/Keylocation/{taskname}/h0'):
+                    os.mkdir(f'./Files/Keylocation/{taskname}/h0')
+                if not os.path.exists(f'./Files/Keylocation/{taskname}/h2w'):
+                    os.mkdir(f'./Files/Keylocation/{taskname}/h2w')
+                if not os.path.exists(f'./Files/Keylocation/{taskname}/Others'):
+                    os.mkdir(f'./Files/Keylocation/{taskname}/Others')
+
+                with open(f'./Files/Keylocation/{taskname}/h0/h0_pob_dict.pkl','wb') as f:
+                    pickle.dump(h0_pob_dict,f)
+                with open(f'./Files/Keylocation/{taskname}/h2w/h2w_pob_dict.pkl','wb') as f:
+                    pickle.dump(h2w_pob_dict,f)
+                with open(f'./Files/Keylocation/{taskname}/Others/hw2o_pob_dict.pkl','wb') as f:
+                    pickle.dump(hw2o_pob_dict,f)
+                import json
+                json.dump(params,open(f'./Files/Keylocation/{taskname}/tbdParams.json','w'))
+
+                returndata = {
+                    'status': 'success',
+                    'message': '生成成功'
+                }
+
+
+        # 删除生成中的文件
+        os.rmdir(f'./Files/Keylocation/{taskname}.generating')
+
+        return json.dumps(returndata)
+    
 if __name__ == '__main__':
     app.run(debug=True, port=8001)
