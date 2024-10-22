@@ -802,10 +802,16 @@ def SimUrban():
 
         traj_path = request.args.get('traj')
         charge_station_path = request.args.get('station')
-        simulated_vehicle_nums = request.args.get('numtraj')
+        simulated_vehicle_nums = int(request.args.get('numtraj'))
         useroad = request.args.get('useroad')
         road_path = request.args.get('road')
         numdays = request.args.get('numdays')
+        taxi_rate = float(request.args.get('taxi_rate'))/100
+
+        ev_rate = float(request.args.get('ev_rate'))/100
+
+        no_ev_num = int(simulated_vehicle_nums*(1-ev_rate))
+
         numdays = int(numdays)
         config = request.args.get('config')
         taskname = request.args.get('taskname')
@@ -830,15 +836,18 @@ def SimUrban():
 
         # -------------此处为仿真的代码---------------
         from Models.urban_abm.main import simulation_urban
+        simulation_urban(traj_path=traj_path,
+                    charge_station_path=charge_station_path,
+                    config_path=config_path,
+                    useroad=useroad,
+                    road_path=road_path,
+                    simulated_vehicle_nums=simulated_vehicle_nums,
+                    numdays=numdays,
+                    sample_nums = no_ev_num,
+                    taxi_rate = taxi_rate,
+                    version=taskname)
         try:
-            simulation_urban(traj_path=traj_path,
-                             charge_station_path=charge_station_path,
-                             config_path=config_path,
-                             useroad=useroad,
-                             road_path=road_path,
-                             simulated_vehicle_nums=simulated_vehicle_nums,
-                             numdays=numdays,
-                             version=taskname)
+
             returndata = {
                 'status': 'success'
             }
